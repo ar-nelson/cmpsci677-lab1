@@ -6,8 +6,10 @@ Gateway
 >   import Control.Concurrent.Chan
 >   import Control.Concurrent.STM
 >   import Data.Foldable (for_)
+>   import Data.List (delete)
 >   import Data.Map (Map)
 >   import qualified Data.Map as Map
+>   import Data.Maybe (mapMaybe)
 >   import Network.Socket
 >   import System.IO
 >
@@ -77,7 +79,7 @@ their destination.
 Most messages are forwarded; `Request`s are forwarded to a target device (if it
 exists), and `Response`s are forwarded to the sender of the relevant `Request`
 (determined by the message's `MsgID`, which should be stored in the gateway's
-global state).
+global state). `Broadcast`s are forwarded to all subscribed controllers.
 
 >   routeMessages st addr send recv myID =
 >     do next <- readChan recv
@@ -88,6 +90,10 @@ global state).
 >                fwdTo Nothing = putStrLn $ 
 >                  "Failed to deliver response to message #" ++ show mid
 >            in (atomically (getSenderChannel mid st) >>= fwdTo) >> recur myID
+>          Right (Brc brc) ->
+>            do chans <- atomically (getSubscriberChannels st)
+>               mapM_ ((flip sendMsg) (Brc brc)) chans
+>               recur myID
 >          Right (Unknown s) -> putStrLn $ "Unparseable message: '" ++ s ++ "'"
 >          Left err ->
 >            do putStrLn $ "Connection to " ++ show addr ++ " closed: " ++ err
@@ -115,11 +121,12 @@ device ID in the gateway's global state.
 >         sendMsg send $ Rsp mid (RegisteredAs i)
 >         return (Just i)
 
-The `ChangeMode` request is also handled by the gateway, and sets the current
-user state to `Home` or `Away`.
+The `Subscribe` request is also handled by the gateway, and adds the sender to
+the list of subscribed controllers.
 
->       handleReq mid (ChangeMode mode) = do
->         atomically (writeTVar (userMode st) mode)
+>       handleReq mid Subscribe = do
+>         atomically (addSubscriber addr st)
+>         putStrLn $ "Subscribed controller at " ++ show addr
 >         sendMsg send $ Rsp mid Success
 >         return myID
 
@@ -128,7 +135,6 @@ All other requests are forwarded to a specificed device, if it exists.
 >       handleReq mid req =
 >         fwdReq mid req devID >> return myID
 >         where devID = case req of QueryState i -> i
->                                   ReportState i _ -> i
 >                                   ChangeState i _ -> i
 >       fwdReq mid req i =
 >         atomically (getDevice i st) >>= fwdTo
@@ -147,7 +153,7 @@ thread, and those threads must maintain shared state that describes
 * the original senders of all currently outstanding requests,
 * the device IDs of all registered devices,
 * the next available ID for new devices, and
-* the current user state (`Home` vs. `Away`).
+* all subscribed controllers that should receive broadcast messages.
 
 >   initGatewayState :: IO GatewayState
 >
@@ -156,7 +162,7 @@ thread, and those threads must maintain shared state that describes
 >     senders      :: TVar (Map MsgID SockAddr),
 >     devices      :: TVar (Map ID DeviceEntry),
 >     idCounter    :: TVar ID,
->     userMode     :: TVar Mode
+>     subscribers  :: TVar [SockAddr]
 >   }
 
 [Haskell's `stm` module][hs-stm] makes maintaining this state a relatively
@@ -168,12 +174,12 @@ transactions, using the `atomically` function.
 >     s  <- newTVar (Map.empty :: Map MsgID SockAddr)
 >     d  <- newTVar (Map.empty :: Map ID DeviceEntry)
 >     ic <- newTVar (ID 1)
->     um <- newTVar Home
+>     sb <- newTVar ([] :: [SockAddr])
 >     return GatewayState { sendChannels = sc
 >                         , devices      = d
 >                         , senders      = s
->                         , idCounter    = ic
->                         , userMode     = um }
+>                         , idCounter    = ic 
+>                         , subscribers  = sb }
 
 Registered devices are stored as records containing an ID, a socket address,
 a device type, and a send channel.
@@ -196,6 +202,9 @@ A set of IO functions can be used to access and/or manipulate the gateway state.
 >   removeSender     :: MsgID -> GatewayState -> STM ()
 >   getSenderChannel :: MsgID -> GatewayState -> STM (Maybe MessageChan)
 >   nextID           :: GatewayState -> STM ID
+>   addSubscriber    :: SockAddr -> GatewayState -> STM ()
+>   removeSubscriber :: SockAddr -> GatewayState -> STM ()
+>   getSubscriberChannels :: GatewayState -> STM [MessageChan]
 
 The commands are simple CRUD operations, but they use STM to guarantee that they
 cannot be interleaved.
@@ -207,6 +216,12 @@ cannot be interleaved.
 >   removeDevice i st     = modifyTVar (devices st) (Map.delete i)
 >   addSender i addr st   = modifyTVar (senders st) (Map.insert i addr)
 >   removeSender i st     = modifyTVar (senders st) (Map.delete i)
+>   addSubscriber a st    = modifyTVar (subscribers st) $ 
+>     \as -> if elem a as then as else a : as
+>   removeSubscriber a st = modifyTVar (subscribers st) (delete a)
+>   getSubscriberChannels st = do sb <- readTVar (subscribers st)
+>                                 sc <- readTVar (sendChannels st)
+>                                 return $ mapMaybe ((flip Map.lookup) sc) sb
 >   getSenderChannel i st =
 >     do s  <- readTVar (senders st)
 >        sc <- readTVar (sendChannels st)

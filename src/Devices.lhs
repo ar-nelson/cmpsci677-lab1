@@ -5,10 +5,8 @@ Devices
 >   import Control.Concurrent
 >   import Control.Concurrent.Chan
 >   import Control.Monad (unless)
->   import Control.Concurrent.STM
 >   import Network.Socket
 >   import System.IO
->   import System.Random
 >   import Text.Read (readMaybe)
 >
 >   import Protocol
@@ -121,7 +119,7 @@ unless that line is `exit`.
 
 >           handle _ (UserInput _) =
 >             do println "Motion detected!"
->                sendReq (ReportState i MotionDetected) send
+>                writeChan send $ Right (Brc (ReportState i MotionDetected))
 >                recur ()
 
 No network requests are supported.

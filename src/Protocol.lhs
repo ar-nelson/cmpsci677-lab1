@@ -9,7 +9,7 @@ translation of the types and method signatures from the
 >
 > module Protocol(
 >   Device(..), Mode(..), OnOff(..), State(..), ID(..), MsgID(..),
->   Request(..), Response(..), Message(..)
+>   Request(..), Response(..), Broadcast(..), Message(..)
 > ) where
 >
 >   import System.Random
@@ -28,10 +28,9 @@ A `Request` is an RPC, which the gateway will either forward to a device (if it
 contains an `ID`) or handle directly (if it does not contain an `ID`).
 
 >   data Request = Register Device      |
+>                  Subscribe            |
 >                  QueryState ID        |
->                  ReportState ID State |
->                  ChangeState ID OnOff |
->                  ChangeMode Mode
+>                  ChangeState ID OnOff
 >                  deriving (Show, Read)
 
 A `Response` is the return value of an RPC. Some `Response`s are valid return
@@ -44,12 +43,21 @@ values, while others (the ones starting with `No` or `Not`) are error responses.
 >                   NotSupported Device Request
 >                   deriving (Show, Read)
 
+A `Broadcast` is a message sent to all currently connected controllers.
+Broadcasts are used for push-style updates.
+
+>   data Broadcast = ReportState ID State |
+>                    ChangeMode Mode      |
+>                    TextMessage String
+>                    deriving (Show, Read)
+
 A `Message` is a `Request` or `Response`, with an attached message ID. The
 message ID is a randomly-assigned integer used by the gateway to match responses
 to requests.
 
 >   data Message = Req MsgID Request  |
 >                  Rsp MsgID Response |
+>                  Brc Broadcast      |
 >                  UserInput String   |
 >                  Unknown String
 >                  deriving (Show, Read)

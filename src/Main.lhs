@@ -32,6 +32,7 @@ and _User_) are contained in a single executable.
 >   main = do
 >     args <- getArgs
 >     case args of
+>       "control" : ctrl : host : port : [] -> control ctrl host port
 >       command : host : port : "silent" : [] -> start command host port True
 >       command : host : port : [] -> start command host port False
 >       _ -> usage
@@ -43,11 +44,12 @@ The executable must be given one of six valid command-line arguments.
 >     prog <- getProgName
 >     putStrLn $ unlines [
 >       "Usage: " ++ prog ++ " <command> <host> <port> [silent]",
->       "  <command> is one of [temp, motion, bulb, outlet, gateway, user, heater-control, light-control].",
+>       "  <command> is one of [temp, motion, bulb, outlet, gateway, control <x>],",
+>       "    where <x> is one of [heater, light, user].",
 >       "  <host> is the gateway hostname (0.0.0.0 for the gateway itself).",
 >       "  <port> is the gateway TCP port.",
->       "  'silent' is optional; if provided:",
->       "    1. console output will be minimal (except gateway/user), and",
+>       "  'silent' is optional, and not valid with 'control'. If provided,",
+>       "    1. console output will be minimal (except for gateway), and",
 >       "    2. devices will output only their device ID on a line by itself."]
 
 The argument determines the kind of entity that the executable will become.
@@ -58,6 +60,11 @@ The argument determines the kind of entity that the executable will become.
 >   start "bulb" h p s   = startDevice Bulb h p s
 >   start "outlet" h p s = startDevice Outlet h p s
 >   start "gateway" _ port _ = startGateway port
->   start "user" host port _ = startUserInterface host port
->   start "heater-control" host port _ = startHeaterController host port
+>   start _ _ _ _ = usage
+>   
+>   control :: String -> String -> String -> IO ()
+>   control "heater" host port = startController Heater host port
+>   control "light"  host port = startController Light host port
+>   control "user"   host port = startController UserInterface host port
+>   control _ _ _ = usage
 
