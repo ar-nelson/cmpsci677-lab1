@@ -21,6 +21,7 @@ and _User_) are contained in a single executable.
 
 > module Main where
 >   import System.Environment
+>
 >   import Protocol
 >   import Communication
 >   import Devices
@@ -32,7 +33,8 @@ and _User_) are contained in a single executable.
 >   main = do
 >     args <- getArgs
 >     case args of
->       "control" : ctrl : host : port : [] -> control ctrl host port
+>       "control" : c : host : port : "silent" : [] -> control c host port True
+>       "control" : c : host : port : [] -> control c host port False
 >       command : host : port : "silent" : [] -> start command host port True
 >       command : host : port : [] -> start command host port False
 >       _ -> usage
@@ -48,8 +50,8 @@ The executable must be given one of six valid command-line arguments.
 >       "    where <x> is one of [heater, light, user].",
 >       "  <host> is the gateway hostname (0.0.0.0 for the gateway itself).",
 >       "  <port> is the gateway TCP port.",
->       "  'silent' is optional, and not valid with 'control'. If provided,",
->       "    1. console output will be minimal (except for gateway), and",
+>       "  'silent' is optional, and not valid with 'gateway'. If provided,",
+>       "    1. console output will be minimal, and",
 >       "    2. devices will output only their device ID on a line by itself."]
 
 The argument determines the kind of entity that the executable will become.
@@ -62,9 +64,9 @@ The argument determines the kind of entity that the executable will become.
 >   start "gateway" _ port _ = startGateway port
 >   start _ _ _ _ = usage
 >   
->   control :: String -> String -> String -> IO ()
->   control "heater" host port = startController Heater host port
->   control "light"  host port = startController Light host port
->   control "user"   host port = startController UserInterface host port
->   control _ _ _ = usage
+>   control :: String -> String -> String -> Bool -> IO ()
+>   control "heater" h p s = startController Heater h p s
+>   control "light"  h p s = startController Light h p s
+>   control "user"   h p s = startController UserInterface h p s
+>   control _ _ _ _ = usage
 
