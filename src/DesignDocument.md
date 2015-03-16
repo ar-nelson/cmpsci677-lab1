@@ -43,14 +43,14 @@ Compiling
 ---------
 
 Provided that the [Haskell platform][hs] is installed, the project can be
-compiled by running `cabal build`. If it complains about missing packages, try
-running `cabal update` first, and/or installing those packages manually with
-`cabal install`.
+compiled by running `make`. This should install all necessary `cabal` packages,
+compile the Haskell program, and copy it to the current directory with the name
+`smarthome`.
 
-This will produce the executable file
-`dist/build/cmpsci677-lab1/cmpsci677-lab1`.
+GHC >= 4.5 is required. If you recently installed the Haskell platform, you may
+need to update your package database with `cabal update` before running `make`.
 
-[hs]: https://www.haskell.org/platform/
+[hs]: https://www.haskell.org/platform/ 
 
 Executing
 ---------
@@ -63,14 +63,14 @@ Here are some examples of valid ways to execute the program, demonstrating all
 of the subprogram names:
 
 ```bash
-    ./dist/build/cmpsci677-lab1/cmpsci677-lab1 gateway 0.0.0.0 9100
-    ./dist/build/cmpsci677-lab1/cmpsci677-lab1 temp 127.0.0.1 9100
-    ./dist/build/cmpsci677-lab1/cmpsci677-lab1 motion 127.0.0.1 9100
-    ./dist/build/cmpsci677-lab1/cmpsci677-lab1 bulb 127.0.0.1 9100
-    ./dist/build/cmpsci677-lab1/cmpsci677-lab1 outlet 127.0.0.1 9100
-    ./dist/build/cmpsci677-lab1/cmpsci677-lab1 control heater 127.0.0.1 9100
-    ./dist/build/cmpsci677-lab1/cmpsci677-lab1 control light 127.0.0.1 9100
-    ./dist/build/cmpsci677-lab1/cmpsci677-lab1 control user 127.0.0.1 9100
+    ./smarthome gateway 0.0.0.0 9100
+    ./smarthome temp 127.0.0.1 9100
+    ./smarthome motion 127.0.0.1 9100
+    ./smarthome bulb 127.0.0.1 9100
+    ./smarthome outlet 127.0.0.1 9100
+    ./smarthome control heater 127.0.0.1 9100
+    ./smarthome control light 127.0.0.1 9100
+    ./smarthome control user 127.0.0.1 9100
 ```
 
 `silent` can be added as an extra argument to all of these to limit console
