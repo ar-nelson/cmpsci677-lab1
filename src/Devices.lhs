@@ -203,6 +203,7 @@ close.
 >     where handleRsp (RegisteredAs (ID i)) send recv =
 >             do putStrLn $ if silent then show i
 >                                     else "Connected with ID " ++ show i
+>                hFlush stdout
 >                return (send, recv, ID i)
 >           handleRsp rsp _ _ = error $ 
 >             "Invalid response to Register: " ++ show rsp
