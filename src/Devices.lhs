@@ -69,7 +69,6 @@ a _smart light bulb_, and a _smart outlet_.
 >   nameOf dev    = "Smart " ++ show dev
 >   instructions :: Device -> String
 >   instructions Temp = "Enter an integer, 'state', or 'exit'."
->   instructions Motion ="'exit' to exit; anything else + ENTER to send signal."
 >   instructions _ = "Enter 'on', 'off', 'state', or 'exit'."
 
 Temperature Sensor
@@ -111,26 +110,34 @@ Motion Sensor
 
 The motion sensor can only push state updates via `ReportState` messages.
 
->   bg Motion send recv i println = messageLoop recv handle ()
->     where handle :: MessageHandler ()
+>   bg Motion send recv i println =
+>     messageLoop recv handle (MotionDetected False)
+>     where handle :: MessageHandler State
+>           setState v = do println $ "State changed to " ++ show v ++ "."
+>                           let st = MotionDetected v
+>                           writeChan send $ Right (Brc (ReportState i st))
+>                           recur st
 
-The console interface will push an update anytime it receives a line of input,
-unless that line is `exit`.
+The console inputs `on` and `off` simulate the detector seeing motion/no
+motion, respectively.
 
->           handle _ (UserInput _) =
->             do println "Motion detected!"
->                writeChan send $ Right (Brc (ReportState i MotionDetected))
->                recur ()
+>           handle st (UserInput "on")  = setState True
+>           handle st (UserInput "off") = setState False
+>           handle st (UserInput "state") = println (show st) >> recur st
+>           handle st (UserInput _) = println "Invalid input." >> recur st
 
-No network requests are supported.
+Over the network, the sensor responds only to the `QueryState` request.
 
->           handle _ (Req mid req) =
+>           handle st (Req mid (QueryState _)) =
+>             do sendRsp mid (HasState st) send
+>                recur st
+>           handle st (Req mid req) =
 >             do sendRsp mid (NotSupported Motion req) send
->                recur ()
->           handle _ (Unknown s) =
+>                recur st
+>           handle st (Unknown s) =
 >             do println $ "Unparseable message: '" ++ s ++ "'"
->                recur ()
->           handle _ _ = recur ()
+>                recur st
+>           handle st _ = recur st
 
 Smart Light Bulbs and Outlets
 -----------------------------

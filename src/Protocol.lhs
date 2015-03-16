@@ -17,9 +17,9 @@ translation of the types and method signatures from the
 >   data Device = Temp | Motion | Bulb | Outlet deriving (Eq, Show, Read)
 >   data Mode   = Home | Away deriving (Eq, Show, Read)
 >   data OnOff  = On | Off deriving (Eq, Show, Read)
->   data State  = DegreesCelsius Int |
->                 Power OnOff        |
->                 MotionDetected
+>   data State  = DegreesCelsius Int  |
+>                 MotionDetected Bool |
+>                 Power OnOff
 >                 deriving (Eq, Show, Read)
 >
 >   newtype ID = ID Int deriving (Eq, Ord, Show, Read)

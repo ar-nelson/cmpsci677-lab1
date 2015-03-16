@@ -126,7 +126,7 @@ and a smart outlet.
 >        bulbID   <- askForDeviceID "Smart Light Bulb" silent
 
 A restartable timer is used to turn the light off after a delay. It starts out
-initialized: if the light was on before the controller was started, it will tirn
+initialized: if the light was on before the controller was started, it will turn
 off in 5 minutes.
 
 >        let turnOff = do sendReq (ChangeState bulbID Off) send
@@ -144,12 +144,16 @@ The controller responds only to broadcast (push) messages.
 >            handle _ (Brc (ChangeMode st')) =
 >              do println $ "Set user mode to " ++ show st'
 >                 recur st'
->            handle Home (Brc (ReportState i MotionDetected)) =
+>            handle Home (Brc (ReportState i (MotionDetected True))) =
 >              do when (i == motionID) $ do sendReq (ChangeState bulbID On) send
 >                                           println "Turning light on."
+>                                           stopTimer timer
+>                 recur Home
+>            handle Home (Brc (ReportState i (MotionDetected False))) =
+>              do when (i == motionID) $ do println "Setting light timer."
 >                                           resetTimer
 >                 recur Home
->            handle Away (Brc (ReportState i MotionDetected)) =
+>            handle Away (Brc (ReportState i (MotionDetected True))) =
 >              do when (i == motionID) $ writeChan send $ Right (Brc awayMsg)
 >                 recur Away
 >            handle st (Rsp _ rsp) = println (show rsp) >> recur st
@@ -227,7 +231,8 @@ human-readable.
 >   showRsp Success = "Success!"
 >   showRsp (RegisteredAs i) = "Registered with " ++ show i
 >   showRsp (HasState (DegreesCelsius c)) = show c ++ "\0176C"
->   showRsp (HasState MotionDetected) = "Motion detected!"
+>   showRsp (HasState (MotionDetected True)) = "Motion detected!"
+>   showRsp (HasState (MotionDetected False)) = "No motion detected."
 >   showRsp (HasState (Power p)) = show p
 >   showRsp (NoDevice id) = "Error: No device with " ++ show id
 >   showRsp (NotSupported dev req) =
