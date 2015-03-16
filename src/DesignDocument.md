@@ -77,7 +77,26 @@ of the subprogram names:
 output; this is used by the test scripts.
 
 The test scripts `run-all.sh` and `run-test-case.sh` can be used to run the
-program, but _only after it has been compiled with `cabal build`_.
+program, but _only after it has been compiled with `make`_.
+
+`run-all.sh` launches all of the subprograms at once, hooks up a bunch of named
+pipes (in `./tmp`) to keep them running, and presents the user with the
+`control user` CLI. However, it isn't very interesting at first, because the
+sensors can't be controlled by other devices. To see the controllers in action,
+try sending messages to the named pipes in another console, then watch the
+output on the user CLI. For example, to see the heater controller:
+
+* On the user CLI, `QueryState (ID 3)` (outlet ID may be different)
+    * Should return `RESPONSE: On`
+* In another console, `echo "30" > ./tmp/temp-input`
+* On the user CLI, `QueryState (ID 3)` again
+    * Should return `RESPONSE: Off`
+
+Or, to see the motion detector in the light controller:
+
+* On the user CLI, `ChangeMode Away`
+* In another console, `echo "on" > ./tmp/motion-input`
+* Should see a `BROADCAST: TextMessage "..."` in the user CLI.
 
 Tradeoffs and Known Bugs
 ------------------------

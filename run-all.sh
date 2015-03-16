@@ -43,7 +43,6 @@ PID_LIGHT=$!
 echo $ID_MOTION > $IN_LIGHT
 echo $ID_BULB > $IN_LIGHT
 
-
 echo "-------------------------"
 echo "  DEVICE IDs"
 echo "-------------------------"
