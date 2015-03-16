@@ -31,8 +31,8 @@ Every line from standard input is a command, sent as a `UserInput` message as
 though it were received over a socket. The command `exit` bypasses this and
 shuts down the application.
 
->            console = do unless silent $ putStr "> "                         
->                         hFlush stdout
+>            console = do unless silent $ do putStr "> "                         
+>                                            hFlush stdout
 >                         input <- getLine
 >                         if input == "exit"
 >                           then println "Goodbye!"

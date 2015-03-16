@@ -12,6 +12,7 @@ ID when the controller starts).
 >   import Control.Concurrent.Suspend.Lifted (mDelay)
 >   import Control.Concurrent.Timer
 >   import Control.Monad
+>   import Text.Read (readMaybe)
 >   import System.IO
 >   
 >   import Protocol
@@ -155,4 +156,80 @@ The controller responds only to broadcast (push) messages.
 >            handle st _ = recur st
 >        why <- messageLoop recv handle Home
 >        println $ "Controller died: " ++ why
+
+User Interface
+--------------
+
+The user interface is a special kind of controller: it takes console input in
+the form of Haskell commands, and sends it directly to the gateway. It also
+reports responses and broadcast messages to the console.
+
+>   startController UserInterface host port silent =
+>     do (send, recv) <- connectAndSubscribe host port silent
+>        let println = unless silent . putStrLn
+
+Its console interface is identical to the interface used by devices.
+
+>            console = do unless silent $ do putStr "> "                         
+>                                            hFlush stdout
+>                         input <- getLine
+>                         if input == "exit"
+>                           then println "Goodbye!"
+>                           else do writeChan recv $ Right (UserInput input)
+>                                   unless silent $ threadDelay 100000
+>                                   console
+
+It maintains a background thread that handles both user and network input. All
+network input is printed to the screen, even in silent mode (although silent
+mode uses less pretty printing).
+
+>            handle :: MessageHandler ()
+>            handle _ (Req _ req) = do putStrLn $ "REQUEST: " ++ show req
+>                                      recur ()
+>            handle _ (Rsp _ rsp) = 
+>              do putStrLn $ "RESPONSE: " ++ if silent then show rsp
+>                                                      else showRsp rsp
+>                 recur ()
+>            handle _ (Brc brc)   = do putStrLn $ "BROADCAST: " ++ show brc
+>                                      recur ()
+>            handle _ (Unknown s) = do putStrLn $ "UNPARSEABLE: " ++ s
+>                                      recur ()
+
+User input is in the form of valid Haskell expressions for `Request`s or
+`Broadcast`s.
+
+>            handle _ (UserInput s) =
+>              do case readMaybe s :: Maybe Request of
+>                   Just req -> sendReq req send >> return ()
+>                   Nothing -> case readMaybe s :: Maybe Broadcast of
+>                                Just brc -> writeChan send $ Right (Brc brc)
+>                                Nothing -> println "Invalid input."
+>                 recur ()
+
+The console interface displays a detailed help message on startup.
+
+>        println $ "Connected to host " ++ host ++ ":" ++ port ++ "."
+>        println "\nEnter commands in Haskell expression form."
+>        println "Examples: \"QueryState (ID 1)\""
+>        println "          \"ChangeState (ID 2) On\""
+>        println "          \"ChangeMode Home\""
+>        println "          \"ChangeMode Away\""
+>
+>        bgThread <- forkIO $ do why <- messageLoop recv handle ()
+>                                println $ "Background thread died: " ++ why
+>        console
+>        writeChan send $ Left "Console interface closed."
+
+When not in silent mode, responses are pretty-printed to make them more
+human-readable.
+
+>   showRsp :: Response -> String
+>   showRsp Success = "Success!"
+>   showRsp (RegisteredAs i) = "Registered with " ++ show i
+>   showRsp (HasState (DegreesCelsius c)) = show c ++ "\0176C"
+>   showRsp (HasState MotionDetected) = "Motion detected!"
+>   showRsp (HasState (Power p)) = show p
+>   showRsp (NoDevice id) = "Error: No device with " ++ show id
+>   showRsp (NotSupported dev req) =
+>       "Error: " ++ show dev ++ " does not support request " ++ show req
 

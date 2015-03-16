@@ -27,7 +27,6 @@ and _User_) are contained in a single executable.
 >   import Devices
 >   import Gateway
 >   import Controllers
->   import User
 >
 >   main :: IO ()
 >   main = do
