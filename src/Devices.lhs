@@ -173,14 +173,6 @@ close.
 Support Functions
 -----------------
 
->   sendReq :: Request -> MessageChan -> IO MsgID
->   sendReq req chan = do mid <- randomIO :: IO MsgID
->                         writeChan chan $ Right $ Req mid req
->                         return mid
->
->   sendRsp :: MsgID -> Response -> MessageChan -> IO () 
->   sendRsp mid rsp chan = writeChan chan $ Right $ Rsp mid rsp
->
 >   console :: (String -> IO ()) -> Bool -> IO ()
 >   console fn silent = do unless silent $ putStr "> "
 >                          hFlush stdout

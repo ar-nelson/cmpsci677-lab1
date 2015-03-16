@@ -55,3 +55,5 @@ to requests.
 >
 >   newtype MsgID = MsgID Int deriving (Eq, Ord, Show, Read, Random)
 
+[spec]: http://lass.cs.umass.edu/~shenoy/courses/spring15/labs/lab1.html
+

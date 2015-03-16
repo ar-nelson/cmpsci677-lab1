@@ -2,7 +2,7 @@ Network Communication
 =====================
 
 > module Communication(
->   connectToGateway, messageLoop, socketToChannels, sendLoop, recvLoop,
+>   connectToGateway, messageLoop, socketToChannels, sendReq, sendRsp,
 >   MessageChan, MessageHandler
 > ) where
 >   import Control.Concurrent
@@ -10,6 +10,7 @@ Network Communication
 >   import Control.Exception
 >   import Network.Socket
 >   import System.IO
+>   import System.Random
 >   import Text.Read (readMaybe)
 >
 >   import Protocol
@@ -121,4 +122,15 @@ state value.
 
 >   messageLoop c h s = mapRight (mapRight (messageLoop c h) . h s) (readChan c)
 >   mapRight fn = (>>= \v -> case v of {Right r -> fn r; Left s -> return s})
+
+Some common support functions for the message loop (mostly for sending messages)
+are included here as well.
+
+>   sendReq :: Request -> MessageChan -> IO MsgID
+>   sendReq req chan = do mid <- randomIO :: IO MsgID
+>                         writeChan chan $ Right $ Req mid req
+>                         return mid
+>
+>   sendRsp :: MsgID -> Response -> MessageChan -> IO () 
+>   sendRsp mid rsp chan = writeChan chan $ Right $ Rsp mid rsp
 

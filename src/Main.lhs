@@ -25,6 +25,7 @@ and _User_) are contained in a single executable.
 >   import Communication
 >   import Devices
 >   import Gateway
+>   import Controllers
 >   import User
 >
 >   main :: IO ()
@@ -42,7 +43,7 @@ The executable must be given one of six valid command-line arguments.
 >     prog <- getProgName
 >     putStrLn $ unlines [
 >       "Usage: " ++ prog ++ " <command> <host> <port> [silent]",
->       "  <command> is one of [temp, motion, bulb, outlet, gateway, user].",
+>       "  <command> is one of [temp, motion, bulb, outlet, gateway, user, heater-control, light-control].",
 >       "  <host> is the gateway hostname (0.0.0.0 for the gateway itself).",
 >       "  <port> is the gateway TCP port.",
 >       "  'silent' is optional; if provided:",
@@ -58,4 +59,5 @@ The argument determines the kind of entity that the executable will become.
 >   start "outlet" h p s = startDevice Outlet h p s
 >   start "gateway" _ port _ = startGateway port
 >   start "user" host port _ = startUserInterface host port
+>   start "heater-control" host port _ = startHeaterController host port
 
