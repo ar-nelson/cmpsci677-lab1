@@ -88,9 +88,5 @@ transactional memory, and spawning new threads was simple. I didn't bother to
 come up with a compact binary encoding for messages; Haskell's built-in string
 serialization was good enough for my purposes.
 
-One bug I haven't been able to fix is that **the gateway doesn't close TCP
-connections when a client leaves**. If a device is killed, its ID will remain
-reserved, and trying to communicate with that ID can cause a deadlock. 
-
 \newpage
 

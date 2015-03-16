@@ -12,7 +12,7 @@ ID when the controller starts).
 >   import Control.Concurrent.Suspend.Lifted (mDelay)
 >   import Control.Concurrent.Timer
 >   import Control.Monad
->   import Text.Read (readMaybe)
+>   import Safe (readMay)
 >   import System.IO
 >   
 >   import Protocol
@@ -40,7 +40,7 @@ updates from other devices.
 >   connectAndSubscribe host port silent =
 >     do send <- newChan :: IO MessageChan
 >        recv <- newChan :: IO MessageChan
->        connectToGateway host port send recv
+>        connectToGateway host port send recv silent
 >        mid <- sendReq Subscribe send
 >        rspMsg <- readChan recv
 >        case rspMsg of Right (Rsp mid' rsp) -> 
@@ -203,9 +203,9 @@ User input is in the form of valid Haskell expressions for `Request`s or
 `Broadcast`s.
 
 >            handle _ (UserInput s) =
->              do case readMaybe s :: Maybe Request of
+>              do case readMay s :: Maybe Request of
 >                   Just req -> sendReq req send >> return ()
->                   Nothing -> case readMaybe s :: Maybe Broadcast of
+>                   Nothing -> case readMay s :: Maybe Broadcast of
 >                                Just brc -> writeChan send $ Right (Brc brc)
 >                                Nothing -> println "Invalid input."
 >                 recur ()

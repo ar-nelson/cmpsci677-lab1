@@ -5,13 +5,15 @@ Communication
 >   connectToGateway, messageLoop, socketToChannels, sendReq, sendRsp,
 >   MessageChan, MessageHandler
 > ) where
+>   import Prelude hiding (catch)
 >   import Control.Concurrent
 >   import Control.Concurrent.Chan
 >   import Control.Exception
+>   import Control.Monad (unless)
 >   import Network.Socket
 >   import System.IO
 >   import System.Random
->   import Text.Read (readMaybe)
+>   import Safe (readMay)
 >
 >   import Protocol
 
@@ -21,8 +23,9 @@ Client TCP Connection
 Client devices connect to the gatway via a TCP socket (code mostly copied from
 [Real World Haskell][rwh-socket]).
 
->   connectToGateway :: HostName -> String -> MessageChan -> MessageChan -> IO ()
->   connectToGateway host port send recv =
+>   connectToGateway :: HostName -> String -> MessageChan -> MessageChan -> Bool
+>     -> IO ()
+>   connectToGateway host port send recv silent =
 >     catch openSocketChannels onError
 >     where openSocketChannels = withSocketsDo $
 >             do addrinfos <- getAddrInfo Nothing (Just host) (Just port)
@@ -30,7 +33,7 @@ Client devices connect to the gatway via a TCP socket (code mostly copied from
 >                sock <- socket (addrFamily serveraddr) Stream defaultProtocol
 >                setSocketOption sock KeepAlive 1
 >                connect sock (addrAddress serveraddr)
->                socketToChannels sock send recv
+>                socketToChannels sock send recv silent
 >           onError = writeChan recv . Left . show :: SomeException -> IO ()
 
 [rwh-sockets]: http://book.realworldhaskell.org/read/sockets-and-syslog.html
@@ -42,8 +45,8 @@ The raw socket is not particularly convenient to use, and there are thread
 safety concerns, so it is abstracted as a pair of `Message` channels: one in,
 one out.
 
->   --                  socket    send channel   recv channel
->   socketToChannels :: Socket -> MessageChan -> MessageChan -> IO ()
+>   --                  socket    send channel   recv channel   silent
+>   socketToChannels :: Socket -> MessageChan -> MessageChan -> Bool -> IO ()
 
 Each channel can send/receive `Either` a `Message` or an error `String`.
 
@@ -53,30 +56,30 @@ Creating a connection spawns two new threads (one for send, one for recv), each
 of which uses the provided channels. If the connection is closed for any reason,
 the threads will terminate.
 
->   sendLoop :: Handle -> MessageChan -> IO String
->   recvLoop :: Handle -> MessageChan -> IO ()
->
->   socketToChannels sock send recv =
->     do h <- socketToHandle sock ReadWriteMode
->        recvThread <- forkFinally (recvLoop h recv) endRecv
->        forkFinally (sendLoop h send) (endSend recvThread h)
->        return ()
->     where endRecv :: Either SomeException () -> IO ()
->           endSend :: ThreadId -> Handle -> Either SomeException String
->             -> IO ()
-
 An error value on the send channel will cause the connection to close, while an
 error value on the recv channel indicates that something external closed the
 connection.
 
->           endRecv e = writeChan send $ Left $
->             case e of Left ex -> show ex
->                       Right () -> "Connection closed."
->           endSend recvThread h e =
->             do throwTo recvThread $
->                  case e of Left ex -> ex
->                            Right s -> SomeException $ ErrorCall s
->                hClose h
+>   sendLoop :: Handle -> MessageChan -> IO ()
+>   recvLoop :: Handle -> MessageChan -> IO ()
+>
+>   socketToChannels sock send recv silent =
+>     do h <- socketToHandle sock ReadWriteMode
+>        let println = unless silent . putStrLn
+>            killChan c = writeChan c . Left
+>            recvFail :: SomeException -> IO ()
+>            recvFail e = do println $ "Recv thread died: " ++ show e
+>                            killChan recv $ show e
+>                            killChan send $ show e
+>            defMsg = do killChan recv "Connection closed."
+>                        killChan send "Connection closed."
+>        recvThread <- forkIO $ catch (recvLoop h recv >> defMsg) recvFail
+>
+>        let sendFail :: SomeException -> IO ()
+>            sendFail e = do println $ "Send thread died: " ++ show e
+>                            throwTo recvThread e
+>        forkIO $ catch (sendLoop h send) sendFail >> hClose h
+>        return ()
 
 Messages are sent over the wire as strings, using Haskell's default
 `read`/`show` serialization. They are separated by newlines; this works as long
@@ -88,14 +91,14 @@ machine.
 >     do next <- readChan chan
 >        case next of
 >          Right message -> hPutStrLn h (show message) >> sendLoop h chan
->          Left err -> return err
+>          Left err -> error err
 >
 >   recvLoop h chan =
 >     do message <- fmap parse (hGetLine h)
 >        writeChan chan $ Right message
 >        recvLoop h chan
->     where parse s = case readMaybe s :: Maybe Message of Just msg -> msg
->                                                          Nothing -> Unknown s
+>     where parse s = case readMay s :: Maybe Message of Just msg -> msg
+>                                                        Nothing -> Unknown s
 
 The Message Loop
 ----------------

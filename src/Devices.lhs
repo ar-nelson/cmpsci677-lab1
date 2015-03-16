@@ -7,7 +7,7 @@ Devices
 >   import Control.Monad (unless)
 >   import Network.Socket
 >   import System.IO
->   import Text.Read (readMaybe)
+>   import Safe (readMay)
 >
 >   import Protocol
 >   import Communication
@@ -87,7 +87,7 @@ and entering `state` will print the current temperature.
 >             do case st of DegreesCelsius c -> println $ show c ++ "\0176C"
 >                recur st
 >           handle st (UserInput s) =
->             case readMaybe s :: Maybe Int of
+>             case readMay s :: Maybe Int of
 >               Just c -> do println $ "Set temp to " ++ show c ++ "\0176C."
 >                            recur $ DegreesCelsius c
 >               Nothing -> println "Invalid input." >> recur st
@@ -192,7 +192,7 @@ close.
 >   connectAndRegister dev host port silent =
 >     do send <- newChan :: IO MessageChan
 >        recv <- newChan :: IO MessageChan
->        connectToGateway host port send recv
+>        connectToGateway host port send recv silent
 >        mid <- sendReq (Register dev) send
 >        rspMsg <- readChan recv
 >        case rspMsg of Right (Rsp mid' rsp) -> 

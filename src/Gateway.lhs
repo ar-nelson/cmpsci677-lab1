@@ -5,6 +5,7 @@ Gateway
 >   import Control.Concurrent
 >   import Control.Concurrent.Chan
 >   import Control.Concurrent.STM
+>   import Control.Exception (finally)
 >   import Data.Foldable (for_)
 >   import Data.List (delete)
 >   import Data.Map (Map)
@@ -58,10 +59,10 @@ a client, fork a thread to process incoming messages.
 >             do (connsock, clientaddr) <- accept mastersock
 >                send <- newChan :: IO MessageChan
 >                recv <- newChan :: IO MessageChan
->                socketToChannels connsock send recv
+>                socketToChannels connsock send recv False
 >                atomically (addChannel clientaddr send st)
->                forkFinally (routeMessages st clientaddr send recv Nothing) $
->                  \_ -> atomically (removeChannel clientaddr st)
+>                forkIO $ finally (routeMessages st clientaddr send recv Nothing)
+>                                 (atomically (removeChannel clientaddr st))
 >                procConnections st mastersock
 
 [rwh-sockets]: http://book.realworldhaskell.org/read/sockets-and-syslog.html
