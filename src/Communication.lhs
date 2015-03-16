@@ -1,5 +1,5 @@
-Network Communication
-=====================
+Communication
+=============
 
 > module Communication(
 >   connectToGateway, messageLoop, socketToChannels, sendReq, sendRsp,
@@ -15,12 +15,32 @@ Network Communication
 >
 >   import Protocol
 
+Client TCP Connection
+---------------------
+
+Client devices connect to the gatway via a TCP socket (code mostly copied from
+[Real World Haskell][rwh-socket]).
+
+>   connectToGateway :: HostName -> String -> MessageChan -> MessageChan -> IO ()
+>   connectToGateway host port send recv =
+>     catch openSocketChannels onError
+>     where openSocketChannels = withSocketsDo $
+>             do addrinfos <- getAddrInfo Nothing (Just host) (Just port)
+>                let serveraddr = head addrinfos
+>                sock <- socket (addrFamily serveraddr) Stream defaultProtocol
+>                setSocketOption sock KeepAlive 1
+>                connect sock (addrAddress serveraddr)
+>                socketToChannels sock send recv
+>           onError = writeChan recv . Left . show :: SomeException -> IO ()
+
+[rwh-sockets]: http://book.realworldhaskell.org/read/sockets-and-syslog.html
+
 Thread-Safe Sockets
 -------------------
 
-The raw socket is not
-particularly convenient to use, and there are thread safety concerns, so it is
-abstracted as a pair of `Message` channels: one in, one out.
+The raw socket is not particularly convenient to use, and there are thread
+safety concerns, so it is abstracted as a pair of `Message` channels: one in,
+one out.
 
 >   --                  socket    send channel   recv channel
 >   socketToChannels :: Socket -> MessageChan -> MessageChan -> IO ()
@@ -74,29 +94,8 @@ machine.
 >     do message <- fmap parse (hGetLine h)
 >        writeChan chan $ Right message
 >        recvLoop h chan
->     --do hSetBuffering h LineBuffering
->     --   messages <- hGetContents h
->     --   mapM_ (writeChan chan . Right . parse) (lines messages)
 >     where parse s = case readMaybe s :: Maybe Message of Just msg -> msg
 >                                                          Nothing -> Unknown s
-
-Client TCP Connection
----------------------
-
-Client devices connect to the gatway via a TCP socket (code mostly copied from
-[Real World Haskell][rwh-socket]).
-
->   connectToGateway :: HostName -> String -> MessageChan -> MessageChan -> IO ()
->   connectToGateway host port send recv =
->     catch openSocketChannels onError
->     where openSocketChannels = withSocketsDo $
->             do addrinfos <- getAddrInfo Nothing (Just host) (Just port)
->                let serveraddr = head addrinfos
->                sock <- socket (addrFamily serveraddr) Stream defaultProtocol
->                setSocketOption sock KeepAlive 1
->                connect sock (addrAddress serveraddr)
->                socketToChannels sock send recv
->           onError = writeChan recv . Left . show :: SomeException -> IO ()
 
 The Message Loop
 ----------------

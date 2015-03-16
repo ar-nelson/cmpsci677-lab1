@@ -1,44 +1,20 @@
-% CMPSCI 677 Lab 1: Internet of Things
-% Adam R. Nelson
-% March 16, 2015
+Main
+====
 
-Overview
-========
-
-Purpose
--------
-
-This project is a simulation of a network of "smart devices" (sometimes
-referred to as the _Internet of Things_). Each simulated device is a CLI
-Haskell program that communicates with the other devices via TCP messages
-relayed through a central gateway.
-
-Execution
----------
-
-All four entities required by the project (_Sensor_, _Smart Device_, _Gateway_,
-and _User_) are contained in a single executable.
+The `Main` module is the entry point of the program.
 
 > module Main where
 >   import System.Environment
 >
 >   import Protocol
 >   import Communication
->   import Devices
 >   import Gateway
+>   import Devices
 >   import Controllers
->
->   main :: IO ()
->   main = do
->     args <- getArgs
->     case args of
->       "control" : c : host : port : "silent" : [] -> control c host port True
->       "control" : c : host : port : [] -> control c host port False
->       command : host : port : "silent" : [] -> start command host port True
->       command : host : port : [] -> start command host port False
->       _ -> usage
 
-The executable must be given one of six valid command-line arguments.
+The program takes 3 arguments (the first of which may be either 1 or 2 words),
+plus an optional fourth argument (`silent`). If any other arguments are given,
+it will display a usage message.
 
 >   usage :: IO ()
 >   usage = do
@@ -53,7 +29,25 @@ The executable must be given one of six valid command-line arguments.
 >       "    1. console output will be minimal, and",
 >       "    2. devices will output only their device ID on a line by itself."]
 
-The argument determines the kind of entity that the executable will become.
+The first argument is the name of the subprogram to run: either `gateway`,
+a device name (`temp`, `motion`, `bulb`, `outlet`), or `control` followed by
+a controller name (`heater`, `light`, or `user`).
+
+The second and third arguments are the hostname and port number of the gateway
+to connect to (or launch).
+
+>   main :: IO ()
+>   main = do
+>     args <- getArgs
+>     case args of
+>       "control" : c : host : port : "silent" : [] -> control c host port True
+>       "control" : c : host : port : [] -> control c host port False
+>       command : host : port : "silent" : [] -> start command host port True
+>       command : host : port : [] -> start command host port False
+>       _ -> usage
+
+All further execution occurs in one of the `Gateway`, `Devices` or `Controllers`
+modules.
 
 >   start :: String -> String -> String -> Bool -> IO ()
 >   start "temp" h p s   = startDevice Temp h p s
