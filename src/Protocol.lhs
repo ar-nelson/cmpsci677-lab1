@@ -50,6 +50,7 @@ to requests.
 
 >   data Message = Req MsgID Request  |
 >                  Rsp MsgID Response |
+>                  UserInput String   |
 >                  Unknown String
 >                  deriving (Show, Read)
 >

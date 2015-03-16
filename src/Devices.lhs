@@ -13,8 +13,66 @@ Devices
 >
 >   import Protocol
 >   import Communication
->
+
+Device Console Interface
+------------------------
+
+All devices present a console interface that allows a user to query and/or
+update the device's state directly.
+
 >   startDevice :: Device -> HostName -> String -> Bool -> IO ()
+>   startDevice dev host port silent =
+>     do (send, recv, i) <- connectAndRegister dev host port silent
+
+If the `silent` command-line argument was provided, this interface will not
+output anything except the device's ID.
+
+>        let println = unless silent . putStrLn
+
+Every line from standard input is a command, sent as a `UserInput` message as
+though it were received over a socket. The command `exit` bypasses this and
+shuts down the application.
+
+>            console = do unless silent $ putStr "> "                         
+>                         hFlush stdout
+>                         input <- getLine
+>                         if input == "exit"
+>                           then println "Goodbye!"
+>                           else do writeChan recv $ Right (UserInput input)
+>                                   unless silent $ threadDelay 1000
+>                                   console
+>        println $ nameOf dev ++ " console interface"
+>        println $ instructions dev
+
+A background thread runs concurrently with the interface, handling both network
+and user input. In the event of an error, this thread will stop and an error
+message will display, but the console interface will not immediately close.
+
+>        bgThread <- forkIO $ do why <- bg dev send recv i println
+>                                println $ "Background thread died: " ++ why
+>        console
+>        writeChan send $ Left "Console interface closed."
+>
+>   bg :: Device            -- Device type
+>      -> MessageChan       -- send channel
+>      -> MessageChan       -- recv channel
+>      -> ID                -- Device ID
+>      -> (String -> IO ()) -- println function
+>      -> IO String         -- Return value: Error message
+>
+>   recur = return . Right
+
+There are four kinds of devices: a _temperature sensor_, a _motion sensor_,
+a _smart light bulb_, and a _smart outlet_.
+
+>   nameOf :: Device -> String
+>   nameOf Temp   = "Temperature Sensor"
+>   nameOf Motion = "Motion Sensor"
+>   nameOf dev    = "Smart " ++ show dev
+>   instructions :: Device -> String
+>   instructions Temp = "Enter an integer, 'state', or 'exit'."
+>   instructions Motion ="'exit' to exit; anything else + ENTER to send signal."
+>   instructions _ = "Enter 'on', 'off', 'state', or 'exit'."
 
 Temperature Sensor
 ------------------
@@ -22,76 +80,59 @@ Temperature Sensor
 The temperature sensor has a local state that can be queried remotely, but can
 only be set locally via the console interface.
 
->   startDevice Temp host port silent =
->     do (send, recv, _) <- connectAndRegister Temp host port silent
->        state <- atomically $ newTVar (DegreesCelsius 0)
->        let println = unless silent . putStrLn
->        println "Temperature Sensor console interface"
->        println "Enter an integer, 'state', or 'exit'."
+>   bg Temp send recv _ println = messageLoop recv handle (DegreesCelsius 0)
+>     where handle :: MessageHandler State
 
 Entering an integer at the console interface will set the current temperature,
-entering `state` will print the current temperature, and entering `exit` will
-shut down the device.
+and entering `state` will print the current temperature.
 
->        let eval "exit" = println "Goodbye!"
->            eval "state" = do st <- readTVarIO state
->                              case st of DegreesCelsius c ->
->                                           println $ show c ++ "\0176C"
->            eval s = case readMaybe s :: Maybe Int of
->                       Just c -> 
->                         do atomically $ writeTVar state (DegreesCelsius c)
->                            println $ "Set temp to " ++ show c ++ "\0176C."
->                       Nothing -> println "Invalid input."
+>           handle st (UserInput "state") =
+>             do case st of DegreesCelsius c -> println $ show c ++ "\0176C"
+>                recur st
+>           handle st (UserInput s) =
+>             case readMaybe s :: Maybe Int of
+>               Just c -> do println $ "Set temp to " ++ show c ++ "\0176C."
+>                            recur $ DegreesCelsius c
+>               Nothing -> println "Invalid input." >> recur st
 
-The background thread responds to only the `QueryState` request.
+Over the network, the sensor responds only to the `QueryState` request.
 
->            bg = do next <- readChan recv
->                    case next of
->                      Right (Req mid req) -> handle mid req >> bg
->                      Right (Unknown s) -> 
->                        putStrLn $ "Unparseable message: '" ++ s ++ "'"
->                      Left s -> println $ "Background thread died: " ++ s
->                      _ -> bg
->                 where handle mid QueryState{} =
->                         do st <- readTVarIO state
->                            sendRsp mid (HasState st) send
->                       handle mid r = sendRsp mid (NotSupported Temp r) send
->        forkIO bg
->        console eval silent
->        writeChan send $ Left "Console interface closed."
+>           handle st (Req mid (QueryState _)) =
+>             do sendRsp mid (HasState st) send
+>                recur st
+>           handle st (Req mid req) =
+>             do sendRsp mid (NotSupported Temp req) send
+>                recur st
+>           handle st (Unknown s) =
+>             do println $ "Unparseable message: '" ++ s ++ "'"
+>                recur st
+>           handle st _ = recur st
 
 Motion Sensor
 -------------
 
 The motion sensor can only push state updates via `ReportState` messages.
 
->   startDevice Motion host port silent =
->     do (send, recv, i) <- connectAndRegister Motion host port silent
->        let println = unless silent . putStrLn
->        println "Motion Sensor console interface"
->        println "'exit' to exit; anything else + ENTER to send signal."
+>   bg Motion send recv i println = messageLoop recv handle ()
+>     where handle :: MessageHandler ()
 
 The console interface will push an update anytime it receives a line of input,
 unless that line is `exit`.
 
->        let eval "exit" = println "Goodbye!"
->            eval _ = do println "Motion detected!"
->                        sendReq (ReportState i MotionDetected) send
->                        return ()
+>           handle _ (UserInput _) =
+>             do println "Motion detected!"
+>                sendReq (ReportState i MotionDetected) send
+>                recur ()
 
-The background thread will respond with `NotSupported` to any and all requests.
+No network requests are supported.
 
->            bg = do next <- readChan recv
->                    case next of
->                      Right (Req mid req) ->
->                        sendRsp mid (NotSupported Motion req) send >> bg
->                      Right (Unknown s) -> 
->                        putStrLn $ "Unparseable message: '" ++ s ++ "'"
->                      Left s -> println $ "Background thread died: " ++ s
->                      _ -> bg
->        forkIO bg
->        console eval silent
->        writeChan send $ Left "Console interface closed."
+>           handle _ (Req mid req) =
+>             do sendRsp mid (NotSupported Motion req) send
+>                recur ()
+>           handle _ (Unknown s) =
+>             do println $ "Unparseable message: '" ++ s ++ "'"
+>                recur ()
+>           handle _ _ = recur ()
 
 Smart Light Bulbs and Outlets
 -----------------------------
@@ -100,42 +141,34 @@ Both of these devices behave more or less identically, so they use the same
 code. The only functionality these devices provide is an on/off state: the state
 can be set and queried via messages.
 
->   startDevice dev host port silent =
->     do (send, recv, _) <- connectAndRegister dev host port silent
->        state <- atomically $ newTVar (Power Off)
->        let println = unless silent . putStrLn
->        println $ "Smart " ++ show dev ++ " console interface"
->        println "Enter 'on', 'off', 'state', or 'exit'."
->        let setState o = do atomically $ writeTVar state (Power o)
->                            println $ "State changed to " ++ show o ++ "."
+>   bg dev send recv i println = messageLoop recv handle (Power Off)
+>     where handle :: MessageHandler State
+>           setState o = do println $ "State changed to " ++ show o ++ "."
+>                           recur (Power o)
 
 The console interface allows a user or script to set the state with `on` or
-`off`, query the state with `state`, and shut down the device with `exit`.
+`off`, and query the state with `state`.
 
->            eval "on"    = setState On
->            eval "off"   = setState Off
->            eval "state" = readTVarIO state >>= println . show
->            eval "exit"  = println "Goodbye!"
->            eval _       = println "Invalid input."
+>           handle st (UserInput "on")  = setState On
+>           handle st (UserInput "off") = setState Off
+>           handle st (UserInput "state") = println (show st) >> recur st
+>           handle st (UserInput _) = println "Invalid input." >> recur st
 
 The background thread responds to the `QueryState` and `ChangeState` requests.
 
->            bg = do next <- readChan recv
->                    case next of
->                      Right (Req mid req) -> handle mid req >> bg
->                      Right (Unknown s) -> 
->                        putStrLn $ "Unparseable message: '" ++ s ++ "'"
->                      Left s -> println $ "Background thread died: " ++ s
->                      _ -> bg
->                 where handle mid QueryState{} =
->                         do st <- readTVarIO state
->                            sendRsp mid (HasState st) send
->                       handle mid (ChangeState _ o) = 
->                         setState o >> sendRsp mid Success send
->                       handle mid r = sendRsp mid (NotSupported dev r) send
->        forkIO bg
->        console eval silent
->        writeChan send $ Left "Console interface closed."
+>           handle st (Req mid (QueryState _)) =
+>             do sendRsp mid (HasState st) send
+>                recur st
+>           handle st (Req mid (ChangeState _ o)) = 
+>             do sendRsp mid Success send
+>                setState o
+>           handle st (Req mid req) =
+>             do sendRsp mid (NotSupported dev req) send
+>                recur st
+>           handle st (Unknown s) =
+>             do println $ "Unparseable message: '" ++ s ++ "'"
+>                recur st
+>           handle st _ = recur st
 
 Connecting to the Gateway
 -------------------------
@@ -169,14 +202,4 @@ close.
 >           handleRsp rsp _ _ = error $ 
 >             "Invalid response to Register: " ++ show rsp
 >           wrongRsp = error "Got something other than response to Register."
-
-Support Functions
------------------
-
->   console :: (String -> IO ()) -> Bool -> IO ()
->   console fn silent = do unless silent $ putStr "> "
->                          hFlush stdout
->                          input <- getLine
->                          fn input
->                          unless (input == "exit") (console fn silent)
 
