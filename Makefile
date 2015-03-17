@@ -8,7 +8,7 @@ configure: deps
 	cabal configure
 
 deps: You_Need_To_Install_The_Haskell_Platform
-	cabal install containers network stm random timers suspend safe
+	cabal install containers network stm random timers suspend safe time
 
 clean: You_Need_To_Install_The_Haskell_Platform
 	cabal clean

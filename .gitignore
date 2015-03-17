@@ -13,3 +13,4 @@ cabal.config
 doc.pdf
 smarthome
 tmp/
+test-output.txt

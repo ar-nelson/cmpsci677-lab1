@@ -22,7 +22,7 @@ it will display a usage message.
 >     putStrLn $ unlines [
 >       "Usage: " ++ prog ++ " <command> <host> <port> [silent]",
 >       "  <command> is one of [temp, motion, bulb, outlet, gateway, control <x>],",
->       "    where <x> is one of [heater, light, user].",
+>       "    where <x> is one of [heater, light, user, testlog].",
 >       "  <host> is the gateway hostname (0.0.0.0 for the gateway itself).",
 >       "  <port> is the gateway TCP port.",
 >       "  'silent' is optional, and not valid with 'gateway'. If provided,",
@@ -58,8 +58,9 @@ modules.
 >   start _ _ _ _ = usage
 >   
 >   control :: String -> String -> String -> Bool -> IO ()
->   control "heater" h p s = startController Heater h p s
->   control "light"  h p s = startController Light h p s
->   control "user"   h p s = startController UserInterface h p s
+>   control "heater"  h p s = startController Heater h p s
+>   control "light"   h p s = startController Light h p s
+>   control "user"    h p s = startController UserInterface h p s
+>   control "testlog" h p s = startController TestLogger h p s
 >   control _ _ _ _ = usage
 

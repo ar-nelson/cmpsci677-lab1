@@ -9,9 +9,11 @@ ID when the controller starts).
 > module Controllers(startController, Controller(..)) where
 >   import Control.Concurrent
 >   import Control.Concurrent.Chan
+>   import Control.Concurrent.STM
 >   import Control.Concurrent.Suspend.Lifted (mDelay)
 >   import Control.Concurrent.Timer
 >   import Control.Monad
+>   import Data.Time.Clock
 >   import Safe (readMay)
 >   import System.IO
 >   
@@ -19,7 +21,7 @@ ID when the controller starts).
 >   import Communication
 >
 >   startController :: Controller -> String -> String -> Bool -> IO ()
->   data Controller = Heater | Light | UserInterface deriving Show
+>   data Controller = Heater | Light | UserInterface | TestLogger
 
 Common Functionality
 --------------------
@@ -227,14 +229,77 @@ The console interface displays a detailed help message on startup.
 When not in silent mode, responses are pretty-printed to make them more
 human-readable.
 
->   showRsp :: Response -> String
->   showRsp Success = "Success!"
->   showRsp (RegisteredAs i) = "Registered with " ++ show i
->   showRsp (HasState (DegreesCelsius c)) = show c ++ "\0176C"
->   showRsp (HasState (MotionDetected True)) = "Motion detected!"
->   showRsp (HasState (MotionDetected False)) = "No motion detected."
->   showRsp (HasState (Power p)) = show p
->   showRsp (NoDevice id) = "Error: No device with " ++ show id
->   showRsp (NotSupported dev req) =
->       "Error: " ++ show dev ++ " does not support request " ++ show req
+>     where showRsp :: Response -> String
+>           showRsp Success = "Success!"
+>           showRsp (RegisteredAs i) = "Registered with " ++ show i
+>           showRsp (HasState (DegreesCelsius c)) = show c ++ "\0176C"
+>           showRsp (HasState (MotionDetected True)) = "Motion detected!"
+>           showRsp (HasState (MotionDetected False)) = "No motion detected."
+>           showRsp (HasState (Power p)) = show p
+>           showRsp (NoDevice id) = "Error: No device with " ++ show id
+>           showRsp (NotSupported dev req) =
+>             "Error: " ++ show dev ++ " does not support request " ++ show req
+
+Test Controller
+---------------
+
+This controller was written specifically to produce test output compatible with
+the lab instructions. It queries a temperature sensor every second, and it
+outputs a timestamped log entry every time it receives a state update from
+a temperature or motion sensor.
+
+>   startController TestLogger host port silent =
+>     do (send, recv) <- connectAndSubscribe host port silent
+>        let println = unless silent . putStrLn
+>            getTime = getCurrentTime >>= return . utctDayTime
+>        tempID   <- askForDeviceID "Temperature Sensor" silent
+>        motionID <- askForDeviceID "Motion Sensor" silent
+>        startTime <- getTime
+>        println "TEST CONTROLLER -- This is meant to be run by a script."
+>        temp <- atomically $ newTVar 0
+>        motion <- atomically $ newTVar False
+>        let log = do time <- getTime
+>                     (ctemp, cmotion) <- atomically $ do t <- readTVar temp
+>                                                         m <- readTVar motion
+>                                                         return (t, m)
+>                     putStrLn $ show (time - startTime) ++ ":" ++ show ctemp
+>                       ++ "," ++  if cmotion then "1" else "0"
+>                     hFlush stdout
+>            console = do input <- getLine
+>                         if input == "exit"
+>                           then println "Goodbye!"
+>                           else do writeChan recv $ Right (UserInput input)
+>                                   console
+>            handle :: MessageHandler ()
+>            handle _ (UserInput "") = log >> recur ()
+>            handle _ (UserInput "Q(Temp)") =
+>              do sendReq (QueryState tempID) send
+>                 recur ()
+>            handle _ (UserInput "Q(Motion)") =
+>              do sendReq (QueryState motionID) send
+>                 recur ()
+>            handle _ (UserInput "Q(Temp);Q(Motion)") =
+>              do sendReq (QueryState tempID) send
+>                 sendReq (QueryState motionID) send
+>                 recur ()
+>            handle _ (UserInput s) = putStrLn ("Invalid: " ++ s) >> recur ()
+>            handle _ (Rsp _ (HasState (DegreesCelsius temp'))) =
+>              do atomically $ writeTVar temp temp'
+>                 log
+>                 recur ()
+>            handle _ (Rsp _ (HasState (MotionDetected motion'))) =
+>              do atomically $ writeTVar motion motion'
+>                 log
+>                 recur ()
+>            handle _ (Brc (ReportState i (MotionDetected motion')))
+>              | motionID == i = do atomically $ writeTVar motion motion'
+>                                   log
+>                                   recur ()
+>              | otherwise = recur ()
+>            handle _ _ = recur ()
+>        log
+>        bgThread <- forkIO $ do why <- messageLoop recv handle ()
+>                                println $ "Background thread died: " ++ why
+>        console
+>        writeChan send $ Left "Console interface closed."
 

@@ -82,7 +82,7 @@ program, but _only after it has been compiled with `make`_.
 `run-all.sh` launches all of the subprograms at once, hooks up a bunch of named
 pipes (in `./tmp`) to keep them running, and presents the user with the
 `control user` CLI. However, it isn't very interesting at first, because the
-sensors can't be controlled by other devices. To see the controllers in action,
+sensors can't be controlled over the network. To see the controllers in action,
 try sending messages to the named pipes in another console, then watch the
 output on the user CLI. For example, to see the heater controller:
 
@@ -98,8 +98,8 @@ Or, to see the motion detector in the light controller:
 * In another console, `echo "on" > ./tmp/motion-input`
 * Should see a `BROADCAST: TextMessage "..."` in the user CLI.
 
-Tradeoffs and Known Bugs
-------------------------
+Discussion
+----------
 
 Writing the program in Haskell allowed me to reason much more easily about
 thread safety; the gateway's global state was stored using software
