@@ -21,7 +21,7 @@ Client TCP Connection
 ---------------------
 
 Client devices connect to the gatway via a TCP socket (code mostly copied from
-[Real World Haskell][rwh-socket]).
+[Real World Haskell][rwh-sockets]).
 
 >   connectToGateway :: HostName -> String -> MessageChan -> MessageChan -> Bool
 >     -> IO ()
@@ -35,8 +35,6 @@ Client devices connect to the gatway via a TCP socket (code mostly copied from
 >                connect sock (addrAddress serveraddr)
 >                socketToChannels sock send recv silent
 >           onError = writeChan recv . Left . show :: SomeException -> IO ()
-
-[rwh-sockets]: http://book.realworldhaskell.org/read/sockets-and-syslog.html
 
 Thread-Safe Sockets
 -------------------

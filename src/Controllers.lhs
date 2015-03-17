@@ -244,9 +244,7 @@ Test Controller
 ---------------
 
 This controller was written specifically to produce test output compatible with
-the lab instructions. It queries a temperature sensor every second, and it
-outputs a timestamped log entry every time it receives a state update from
-a temperature or motion sensor.
+the lab instructions. It connects to a temperature sensor and a motion sensor.
 
 >   startController TestLogger host port silent =
 >     do (send, recv) <- connectAndSubscribe host port silent
@@ -258,13 +256,21 @@ a temperature or motion sensor.
 >        println "TEST CONTROLLER -- This is meant to be run by a script."
 >        temp <- atomically $ newTVar 0
 >        motion <- atomically $ newTVar False
+
+Output lines have the format `<time>:<temp>,<motion>`. If `silent` is true, then
+these log lines will be the only output.
+
 >        let log = do time <- getTime
 >                     (ctemp, cmotion) <- atomically $ do t <- readTVar temp
 >                                                         m <- readTVar motion
 >                                                         return (t, m)
 >                     putStrLn $ show (time - startTime) ++ ":" ++ show ctemp
->                       ++ "," ++  if cmotion then "1" else "0"
+>                       ++ "," ++ if cmotion then "1" else "0"
 >                     hFlush stdout
+
+Commands from `stdin` which correspond to the commands in the test CSV file are
+converted into remote calls.
+
 >            console = do input <- getLine
 >                         if input == "exit"
 >                           then println "Goodbye!"
@@ -283,14 +289,14 @@ a temperature or motion sensor.
 >                 sendReq (QueryState motionID) send
 >                 recur ()
 >            handle _ (UserInput s) = putStrLn ("Invalid: " ++ s) >> recur ()
+
+Log output is written any time state information is received, from either a push
+or pull message.
+
 >            handle _ (Rsp _ (HasState (DegreesCelsius temp'))) =
->              do atomically $ writeTVar temp temp'
->                 log
->                 recur ()
+>              atomically (writeTVar temp temp') >> log >> recur ()
 >            handle _ (Rsp _ (HasState (MotionDetected motion'))) =
->              do atomically $ writeTVar motion motion'
->                 log
->                 recur ()
+>              atomically (writeTVar motion motion') >> log >> recur ()
 >            handle _ (Brc (ReportState i (MotionDetected motion')))
 >              | motionID == i = do atomically $ writeTVar motion motion'
 >                                   log

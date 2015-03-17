@@ -79,6 +79,18 @@ output; this is used by the test scripts.
 The test scripts `run-all.sh` and `run-test-case.sh` can be used to run the
 program, but _only after it has been compiled with `make`_.
 
+Testing
+-------
+
+I did not write Haskell unit tests for this project; network programs are
+notoriously hard to unit test reliably, and the networking code was the only
+part of the codebase that was likely to be error-prone. (Haskell's type system
+is rigid enough that, for non-I/O code, if it compiles, it's probably correct.)
+
+The scripts `run-all.sh` and `run-test-case.sh` are the closest thing to unit
+tests that I've provided. These run all of the devices and controllers, and
+test the basic functionality.
+
 `run-all.sh` launches all of the subprograms at once, hooks up a bunch of named
 pipes (in `./tmp`) to keep them running, and presents the user with the
 `control user` CLI. However, it isn't very interesting at first, because the
@@ -101,11 +113,19 @@ Or, to see the motion detector in the light controller:
 Discussion
 ----------
 
-Writing the program in Haskell allowed me to reason much more easily about
-thread safety; the gateway's global state was stored using software
-transactional memory, and spawning new threads was simple. I didn't bother to
-come up with a compact binary encoding for messages; Haskell's built-in string
-serialization was good enough for my purposes.
+This took a lot longer than it should have.
+
+I put a lot of work into this project, more than it probably required. Mostly,
+I did it to get better at Haskell. Writing a program like this in Haskell was
+not as error-proof as I would have expected; getting the network code to detect
+shutdowns and not crash randomly took a _long_ time, even though the functional
+parts of the code were as clean and simple as I expected.
+
+What I gained in simplicity of concurrency and data structures, I lost in
+complexity of I/O operations, networking, and build process. Haskell isn't
+a net gain over other languages for this kind of application, but I don't think
+it's a loss either---and, in the end, I designed a much more modular,
+extensible application than the specification called for.
 
 \newpage
 

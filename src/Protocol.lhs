@@ -51,17 +51,21 @@ Broadcasts are used for push-style updates.
 >                    TextMessage String
 >                    deriving (Show, Read)
 
-A `Message` is a `Request` or `Response`, with an attached message ID. The
-message ID is a randomly-assigned integer used by the gateway to match responses
-to requests.
+A `Message` is anything that can be sent over a network, plus a few special
+cases. This includes `Request`s, `Response`s, and `Broadcast`s, but it also
+includes command-line user input (to make CLI event loops simpler) and a special
+case for unparseable input.
 
 >   data Message = Req MsgID Request  |
 >                  Rsp MsgID Response |
 >                  Brc Broadcast      |
 >                  UserInput String   |
 >                  Unknown String
->                  deriving (Show, Read)
->
+>                  deriving (Show, Read
+
+`Request`s and `Response`s have an attached message ID, which is
+a randomly-assigned integer used by the gateway to match responses to requests.
+
 >   newtype MsgID = MsgID Int deriving (Eq, Ord, Show, Read, Random)
 
 [spec]: http://lass.cs.umass.edu/~shenoy/courses/spring15/labs/lab1.html
