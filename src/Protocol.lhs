@@ -61,7 +61,7 @@ case for unparseable input.
 >                  Brc Broadcast      |
 >                  UserInput String   |
 >                  Unknown String
->                  deriving (Show, Read
+>                  deriving (Show, Read)
 
 `Request`s and `Response`s have an attached message ID, which is
 a randomly-assigned integer used by the gateway to match responses to requests.
